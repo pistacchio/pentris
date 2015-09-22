@@ -1,0 +1,320 @@
+Game.FallingPentomino = function () {
+    this.y     = 0;
+    this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
+    this.shape = Game.PENTOMINO_SHAPES[2]; // _.sample(Game.PENTOMINO_SHAPES);
+};
+
+Game.FallingPentomino.prototype = {
+    rotate: function () {
+        // transpose the shape and then reverses each row http://stackoverflow.com/questions/42519/how-do-you-rotate-a-two-dimensional-array
+        this.shape = _.map(Utils.transpose(this.shape), function (row) { return row.reverse(); });
+    },
+    reset: function () {
+        this.y     = 0;
+        this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
+        this.shape = Game.PENTOMINO_SHAPES[2]; // _.sample(Game.PENTOMINO_SHAPES);
+    }
+}
+
+// GRID
+Game.Grid = function (pentominosData, state) {
+    var self      = this;
+
+    // returns a new bidimensional array sized w * h with each cell set to 0
+    this.makeGrid = function (w, h) {
+        return _.map(_.range(h), function () { return _.map(_.range(w), function () { return 0;});});
+    }
+
+    this.makePentominoGrid = _.partial(this.makeGrid, GRID_SIZE_W, GRID_SIZE_H);
+    this.makeFallingGrid   = _.partial(this.makeGrid, GRID_SIZE_W, GRID_SIZE_H + 5);
+
+    this.pentominosData    = pentominosData;
+    this.grid              = this.makePentominoGrid();
+
+    // parent state (Phaser.State)
+    this.state = state;
+
+    this.pentomino = new Game.FallingPentomino();
+
+    // variables for the "exploding row" animation
+    this.explodingGroup     = null; // Phaser.Group with the exploding particles
+    this.explodingStatus    = null; // current status of the explosion animation
+    this.explodingFallCount = null; // counter for the "falling top-half" animation
+
+    // original position of the plasma background to be used to return to it after the shaking
+    this.shakeBackgroundOriginal = {
+        x: this.state.background.x,
+        y: this.state.background.y
+    }
+    // original position of the falling pentomino to be used to return to it after the shaking
+    this.shakePentominosOriginal = {
+        x: this.state.pentominos.x,
+        y: this.state.pentominos.y
+    }
+};
+
+Game.Grid.prototype = {
+    update: function (fall) {
+        // skip if during the "remove line / explode" animation
+        if (Game.status == STATUS_REMOVING_LINES) return;
+
+        // fall defaults to true
+        if (fall === undefined) fall = true;
+
+        var self        = this,
+            fallingGrid = this.makeFallingGrid();
+
+        // make the pentomino fall only if fall == true
+        if (fall) this.pentomino.y++;
+
+        // check if any of the pentomino cells is on the floor or overlaps any other piece on the board.
+        // if so, don't make it fall down but place it on the board and create a new falling pentomino
+        if (_.any(this.pentomino.shape, function (row, y) {
+            return _.any(row, function (cell, x) {
+                return cell == 1 && (y + self.pentomino.y - 5 >= GRID_SIZE_H
+                    || (self.pentomino.y + y - 5 >= 0 && self.pentomino.y + y - 5 < GRID_SIZE_H && self.grid[self.pentomino.y + y - 5][self.pentomino.x + x] == 1));
+            });
+        })) {
+            // revert the fall
+            self.pentomino.y--;
+
+            // draw the pentomino on the board
+            _.each(this.pentomino.shape, function (row, y) {
+                _.each(row, function (cell, x) {
+                    if (cell == 1) {
+                        self.grid[self.pentomino.y + y - 5][self.pentomino.x + x] = 1;
+                    }
+                });
+            });
+
+            // reset the state to "new pentomino is falling"
+            Game.status        = STATUS_PLAYING;
+            this.state.speedUp = 0;
+
+            this.pentomino.reset();
+        }
+
+        // update falling pentomino by drawing it on the new, lower position
+        _.each(this.pentomino.shape, function (row, y) {
+            _.each(row, function (cell, x) {
+                if (cell == 1) {
+                    fallingGrid[self.pentomino.y + y][self.pentomino.x + x] = 1;
+                }
+            });
+        });
+
+        this.drawGrid(fallingGrid);
+
+        // check for complete lines and if found, freeze the game and start the "explode" animation
+        if (_.any(this.grid, function (row, y) {
+            return _.all(row, function (cell) { return cell == 1; });
+        }))
+        {
+            Game.status         = STATUS_REMOVING_LINES;
+            this.explodingStatus = STATUS_EXPLODING_START;
+        }
+    },
+    updateRemovingLines: function () {
+        // skip if *not* during the "remove line / explode" animation
+        if (Game.status != STATUS_REMOVING_LINES) return;
+
+            var self = this,
+
+            // find the first complete line and remove it
+            removeFirstLine = function () {
+                var lineToRemove = _.findIndex(self.grid, function (row) {
+                        return _.all(row, function (cell) { return cell == 1; });
+                    });
+
+                // return if there are no complete lines
+                if (lineToRemove == -1) {
+                    return;
+                }
+
+                // draw the grid without the line to remove
+                self.drawGrid(null, lineToRemove);
+
+                // create a Phaser.Group for all the particles of the explosion
+                self.explodingGroup = self.state.add.group();
+                self.explodingGroup.enableBody = true;
+                self.explodingGroup.physicsBodyType = Phaser.Physics.ARCADE;
+
+                // create a black square as gfx for the particles
+                var explodingRect = game.make.bitmapData(GRID_CELL_SIZE / 2, GRID_CELL_SIZE / 2);
+                explodingRect.ctx.fillStyle = '#000000';
+                explodingRect.ctx.fillRect(0, 0, GRID_CELL_SIZE / 2, GRID_CELL_SIZE / 2);explodingRect.ctx.fillRect(0, 0, GRID_CELL_SIZE / 2, GRID_CELL_SIZE / 2);
+
+                // create two rows of particles to take the place of the removed line
+                _.times(2, function (y) {
+                    _.times(GRID_SIZE_W * 2, function (x) {
+                        var explodingSprite = new Phaser.Sprite(self.state.game, x * GRID_CELL_SIZE / 2, (y * GRID_CELL_SIZE / 2) + lineToRemove * GRID_CELL_SIZE, explodingRect);
+                        self.explodingGroup.add(explodingSprite);
+                    });
+                });
+
+                // setup the animation for the particles. make them "jump" by setting a negative velocity
+                // and set timeout to make the blink before being finally destroyed
+                self.explodingGroup.forEach(function (sprite) {
+                    sprite.body.gravity.y = 35;
+                    sprite.body.velocity.setTo(_.random(-20, 20), _.random(-35, -50));
+
+                    setTimeout(function () {
+                        sprite.visible = false;
+                        setTimeout(function () {
+                            sprite.visible = true;
+                            setTimeout(function () {
+                                sprite.destroy();
+                            }, 100);
+                        }, 100);
+                    }, 1000);
+                });
+
+                // set the "falling" status after a short bit (to give time for the initial "exploding" status)
+                // and set the counter for "falling rows"
+                setTimeout(function () {
+                    self.explodingStatus    = STATUS_EXPLODING_FALLING;
+                    self.explodingFallCount = GRID_CELL_SIZE / GRID_CELL_FALL_SPEED;
+                }, 100);
+
+                self.explodingStatus = STATUS_EXPLODING;
+            },
+
+            // lower by one row all the rows above the removed line
+            makeTheRowFall = function () {
+                // find the line that is being removed
+                var removedLine = _.findIndex(self.grid, function (row) {
+                        return _.all(row, function (cell) { return cell == 1; });
+                    }),
+
+                    // create a bitmap as storage for the temporary pantomino image
+                    newPentominosData = game.make.bitmapData(self.pentominosData.width, self.pentominosData.height);
+
+                // block to be executed when the rows have finished falling
+                if (self.explodingFallCount == 0) {
+                    // remove the row from the grid-map and insert an empty one as the first row
+                    self.grid.splice(removedLine, 1);
+                    self.grid = [_.map(_.range(GRID_SIZE_W), function () { return 0; })].concat(self.grid);
+
+                    // restore the plasma background and the pentominos grid the original position
+                    // that may have changed because of the shaing
+                    self.state.background.x = self.shakeBackgroundOriginal.x;
+                    self.state.background.y = self.shakeBackgroundOriginal.y;
+                    self.state.pentominos.x = self.shakePentominosOriginal.x;
+                    self.state.pentominos.y = self.shakePentominosOriginal.y;
+
+                    // reset the status to the normal one
+                    Game.status = STATUS_PLAYING;
+
+                    return;
+                }
+
+                // copy into the temp bitmap all the lower part of the pentomino grid (down the deleted line)
+                // .........
+                // .........
+                // .........
+                // .....11..
+                //            <- deleted line
+                // .....111.  <- COPY FROM HERE
+                // ...11111.  <- TO HERE
+                newPentominosData.copyRect(self.pentominosData,
+                    new Phaser.Rectangle(0, removedLine * GRID_CELL_SIZE, GRID_SIZE_W * GRID_CELL_SIZE, GRID_SIZE_H * GRID_CELL_SIZE - removedLine * GRID_CELL_SIZE),
+                    0, removedLine * GRID_CELL_SIZE);
+
+                // copy into the temp bitmap all the upper part of the pentomino grid (up the deleted line)
+                // but copy it a bit lower, to simulate the fall
+                // .........  <- COPY FROM HERE
+                // .........
+                // .........
+                // .....11..  <- TO HERE
+                //            <- deleted line
+                // .....111.
+                // ...11111.
+
+                newPentominosData.copyRect(self.pentominosData,
+                    new Phaser.Rectangle(0, 0, GRID_SIZE_W * GRID_CELL_SIZE, (removedLine + 1) * GRID_CELL_SIZE),
+                    0, GRID_CELL_FALL_SPEED);
+
+                // draw the temporary bitmap as actual bitmap
+                self.pentominosData.clear()
+                self.pentominosData.copy(newPentominosData);
+
+                // one less step to go!
+                self.explodingFallCount--;
+            },
+
+            // shake effect accompanying the explosion
+            shake = function () {
+                // shake on alternate call, not to make it so fast it's not visible
+                if (self.explodingFallCount % 2 == 0) return;
+
+                // random x and y shake offset
+                var rndX = _.random(-5, 5);
+                var rndY = _.random(-5, 5);
+
+                // set the new position for the plasma background and the pentomino grid
+                self.state.background.x = self.shakeBackgroundOriginal.x + rndX;
+                self.state.background.y = self.shakeBackgroundOriginal.y + rndY;
+                self.state.pentominos.x = self.shakePentominosOriginal.x + rndX;
+                self.state.pentominos.y = self.shakePentominosOriginal.y + rndY;
+            }
+
+        // call functions according to the current exploding state
+        switch(this.explodingStatus) {
+            case STATUS_EXPLODING_START:
+                removeFirstLine();
+            break;
+            case STATUS_EXPLODING_FALLING:
+                makeTheRowFall();
+                shake();
+            break;
+        }
+    },
+
+    // actually draw the black pentominos
+    drawGrid: function (fallingGrid, skip) {
+        var self = this;
+
+        this.pentominosData.clear();
+
+        // loop through rows and cells of the pentomino main grid *and* the falling pentomino grid
+        // and if the cell is "1", draw a black square
+        _.each(this.grid, function (row, y) {
+            if (skip == y) return;
+
+            _.each(row, function (cell, x) {
+                if (cell == 1 || (fallingGrid ? fallingGrid[y+5][x] == 1 : false)) {
+                    self.pentominosData.rect(x * GRID_CELL_SIZE, y * GRID_CELL_SIZE, GRID_CELL_SIZE, GRID_CELL_SIZE);
+                }
+            });
+        });
+
+    },
+    rotatePentomino: function () {
+        if (Game.status != STATUS_PLAYING) return;
+
+        this.pentomino.rotate();
+        this.update(false);
+    },
+
+    // move the falling pentomino left or right.
+    movePentomino: function (direction) {
+        if (Game.status != STATUS_PLAYING) return;
+
+        var self = this;
+
+        this.pentomino.x += direction;
+
+        // if the movement makes it collide with a full cell of the pentomino grid, reset the position
+        // preventing the movement
+        if (_.any(this.pentomino.shape, function (row, y) {
+            return _.any(row, function (cell, x) {
+                return cell == 1 && self.pentomino.y + y - 5 >= 0 && self.pentomino.y + y - 5 < GRID_SIZE_H && self.grid[self.pentomino.y + y - 5][self.pentomino.x + x] == 1;
+            });
+        })) {
+            this.pentomino.x -= direction;
+            return;
+        }
+
+        this.update(false);
+    },
+};
