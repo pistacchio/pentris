@@ -69,12 +69,7 @@ Game.Grid.prototype = {
 
         // check if any of the pentomino cells is on the floor or overlaps any other piece on the board.
         // if so, don't make it fall down but place it on the board and create a new falling pentomino
-        if (_.any(this.pentomino.shape, function (row, y) {
-            return _.any(row, function (cell, x) {
-                return cell == 1 && (y + self.pentomino.y - 5 >= GRID_SIZE_H
-                    || (self.pentomino.y + y - 5 >= 0 && self.pentomino.y + y - 5 < GRID_SIZE_H && self.grid[self.pentomino.y + y - 5][self.pentomino.x + x] == 1));
-            });
-        })) {
+        if (self.pentominoCollides(true)) {
             // revert the fall
             self.pentomino.y--;
 
@@ -82,7 +77,7 @@ Game.Grid.prototype = {
             _.each(this.pentomino.shape, function (row, y) {
                 _.each(row, function (cell, x) {
                     if (cell == 1) {
-                        self.grid[self.pentomino.y + y - 5][self.pentomino.x + x] = 1;
+                        self.grid[self.pentomino.y + y - 5][self.wrapCell(self.pentomino.x + x)] = 1;
                     }
                 });
             });
@@ -98,7 +93,7 @@ Game.Grid.prototype = {
         _.each(this.pentomino.shape, function (row, y) {
             _.each(row, function (cell, x) {
                 if (cell == 1) {
-                    fallingGrid[self.pentomino.y + y][self.pentomino.x + x] = 1;
+                    fallingGrid[self.pentomino.y + y][self.wrapCell(self.pentomino.x + x)] = 1;
                 }
             });
         });
@@ -110,10 +105,24 @@ Game.Grid.prototype = {
             return _.all(row, function (cell) { return cell == 1; });
         }))
         {
-            Game.status         = STATUS_REMOVING_LINES;
+            Game.status          = STATUS_REMOVING_LINES;
             this.explodingStatus = STATUS_EXPLODING_START;
         }
     },
+
+    // utility function that wraps a cell x value around the grid
+    // so that it never gets outside the grid but appears on the other side
+    //  |.....xxx..|  -> |.....xxx..|
+    //  |........xx|x -> |x.......xx|
+    // x|xx........| - > |xx.......x|
+    wrapCell: function (cellX) {
+        console.log('****');
+        console.log(cellX, Math.abs(Math.abs(cellX) - GRID_SIZE_W));
+        if (cellX >= GRID_SIZE_W) return (cellX - GRID_SIZE_W) % GRID_SIZE_W;
+        if (cellX < 0) return ((cellX % GRID_SIZE_W) + GRID_SIZE_W) % GRID_SIZE_W; // modulo fix found here http://stackoverflow.com/questions/4467539/javascript-modulo-not-behaving
+        return cellX;
+    },
+
     updateRemovingLines: function () {
         // skip if *not* during the "remove line / explode" animation
         if (Game.status != STATUS_REMOVING_LINES) return;
@@ -270,6 +279,23 @@ Game.Grid.prototype = {
         }
     },
 
+    // check if any cell of the falling pentomino in the current position overlaps any cell
+    // of the already drawn pentomino grid
+    // can optionally also check if any cell is outiside the lower bound of the grid (> grid height)
+    pentominoCollides: function (checkOutBounds) {
+        if (checkOutBounds === undefined) checkOutBounds = false;
+
+        var self = this;
+
+        return _.any(this.pentomino.shape, function (row, y) {
+            return _.any(row, function (cell, x) {
+                return cell == 1 && (
+                    (checkOutBounds ? y + self.pentomino.y - 5 >= GRID_SIZE_H : false)
+                    || self.pentomino.y + y - 5 >= 0 && self.pentomino.y + y - 5 < GRID_SIZE_H && self.grid[self.pentomino.y + y - 5][self.wrapCell(self.pentomino.x + x)] == 1);
+            });
+        })
+    },
+
     // actually draw the black pentominos
     drawGrid: function (fallingGrid, skip) {
         var self = this;
@@ -289,10 +315,18 @@ Game.Grid.prototype = {
         });
 
     },
+
+    // don't allow rotation if rotating makes the pentomino overlap any already drawn cell on the pentomino grid
     rotatePentomino: function () {
         if (Game.status != STATUS_PLAYING) return;
 
+        var currentShape = _.cloneDeep(this.pentomino.shape);
+
         this.pentomino.rotate();
+
+        // revert to previous shape if rotating the shape is illegal
+        if (this.pentominoCollides()) this.pentomino.shape = currentShape;
+
         this.update(false);
     },
 
@@ -306,11 +340,7 @@ Game.Grid.prototype = {
 
         // if the movement makes it collide with a full cell of the pentomino grid, reset the position
         // preventing the movement
-        if (_.any(this.pentomino.shape, function (row, y) {
-            return _.any(row, function (cell, x) {
-                return cell == 1 && self.pentomino.y + y - 5 >= 0 && self.pentomino.y + y - 5 < GRID_SIZE_H && self.grid[self.pentomino.y + y - 5][self.pentomino.x + x] == 1;
-            });
-        })) {
+        if (this.pentominoCollides()) {
             this.pentomino.x -= direction;
             return;
         }
