@@ -17,7 +17,7 @@ Game.FallingPentomino.prototype = {
 }
 
 // GRID
-Game.Grid = function (pentominosData, state) {
+Game.Grid = function (state) {
     var self      = this;
 
     // returns a new bidimensional array sized w * h with each cell set to 0
@@ -28,7 +28,7 @@ Game.Grid = function (pentominosData, state) {
     this.makePentominoGrid = _.partial(this.makeGrid, GRID_SIZE_W, GRID_SIZE_H);
     this.makeFallingGrid   = _.partial(this.makeGrid, GRID_SIZE_W, GRID_SIZE_H + 5);
 
-    this.pentominosData    = pentominosData;
+    this.pentominosData    = state.pentominos.key
     this.grid              = this.makePentominoGrid();
 
     // parent state (Phaser.State)
@@ -116,8 +116,6 @@ Game.Grid.prototype = {
     //  |........xx|x -> |x.......xx|
     // x|xx........| - > |xx.......x|
     wrapCell: function (cellX) {
-        console.log('****');
-        console.log(cellX, Math.abs(Math.abs(cellX) - GRID_SIZE_W));
         if (cellX >= GRID_SIZE_W) return (cellX - GRID_SIZE_W) % GRID_SIZE_W;
         if (cellX < 0) return ((cellX % GRID_SIZE_W) + GRID_SIZE_W) % GRID_SIZE_W; // modulo fix found here http://stackoverflow.com/questions/4467539/javascript-modulo-not-behaving
         return cellX;
@@ -156,7 +154,7 @@ Game.Grid.prototype = {
                 // create two rows of particles to take the place of the removed line
                 _.times(2, function (y) {
                     _.times(GRID_SIZE_W * 2, function (x) {
-                        var explodingSprite = new Phaser.Sprite(self.state.game, x * GRID_CELL_SIZE / 2, (y * GRID_CELL_SIZE / 2) + lineToRemove * GRID_CELL_SIZE, explodingRect);
+                        var explodingSprite = new Phaser.Sprite(self.state.game, (x * GRID_CELL_SIZE / 2) + GRID_X, ((y * GRID_CELL_SIZE / 2) + lineToRemove * GRID_CELL_SIZE) + GRID_Y, explodingRect);
                         self.explodingGroup.add(explodingSprite);
                     });
                 });
@@ -206,10 +204,12 @@ Game.Grid.prototype = {
 
                     // restore the plasma background and the pentominos grid the original position
                     // that may have changed because of the shaing
-                    self.state.background.x = self.shakeBackgroundOriginal.x;
-                    self.state.background.y = self.shakeBackgroundOriginal.y;
-                    self.state.pentominos.x = self.shakePentominosOriginal.x;
-                    self.state.pentominos.y = self.shakePentominosOriginal.y;
+                    self.state.background.x      = self.shakeBackgroundOriginal.x;
+                    self.state.background.y      = self.shakeBackgroundOriginal.y;
+                    self.state.pentominos.x      = self.shakePentominosOriginal.x;
+                    self.state.pentominos.y      = self.shakePentominosOriginal.y;
+                    self.state.backgroundCover.x = 0;
+                    self.state.backgroundCover.y = 0;
 
                     // reset the status to the normal one
                     Game.status = STATUS_PLAYING;
@@ -261,15 +261,20 @@ Game.Grid.prototype = {
                 var rndY = _.random(-5, 5);
 
                 // set the new position for the plasma background and the pentomino grid
-                self.state.background.x = self.shakeBackgroundOriginal.x + rndX;
-                self.state.background.y = self.shakeBackgroundOriginal.y + rndY;
-                self.state.pentominos.x = self.shakePentominosOriginal.x + rndX;
-                self.state.pentominos.y = self.shakePentominosOriginal.y + rndY;
+                self.state.background.x      = self.shakeBackgroundOriginal.x + rndX;
+                self.state.background.y      = self.shakeBackgroundOriginal.y + rndY;
+                self.state.pentominos.x      = self.shakePentominosOriginal.x + rndX;
+                self.state.pentominos.y      = self.shakePentominosOriginal.y + rndY;
+                self.state.backgroundCover.x = rndX;
+                self.state.backgroundCover.y = rndY;
             }
 
         // call functions according to the current exploding state
         switch(this.explodingStatus) {
             case STATUS_EXPLODING_START:
+                this.state.speed += 2;
+                this.state.score += Math.round(this.state.speed / 10);
+                this.state.lines++;
                 removeFirstLine();
             break;
             case STATUS_EXPLODING_FALLING:
