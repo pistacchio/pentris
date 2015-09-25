@@ -8,6 +8,11 @@ var GAME_W               = 256,
     GRID_CELL_SIZE       = 10,
     GRID_CELL_FALL_SPEED = 1,
 
+    NEXT_PENTOMINO_X      = 13,
+    NEXT_PENTOMINO_Y      = 105
+    NEXT_PENTOMINO_WIDTH  = 50
+    NEXT_PENTOMINO_HEIGHT = 60,
+
     PLASMA_CELL_SIZE     = 1,
 
     INITIAL_SPEED        = 500,

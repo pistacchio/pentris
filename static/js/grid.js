@@ -1,7 +1,7 @@
 Game.FallingPentomino = function () {
     this.y     = 0;
     this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
-    this.shape = Game.PENTOMINO_SHAPES[2]; // _.sample(Game.PENTOMINO_SHAPES);
+    this.shape = _.sample(Game.PENTOMINO_SHAPES);
 };
 
 Game.FallingPentomino.prototype = {
@@ -9,10 +9,11 @@ Game.FallingPentomino.prototype = {
         // transpose the shape and then reverses each row http://stackoverflow.com/questions/42519/how-do-you-rotate-a-two-dimensional-array
         this.shape = _.map(Utils.transpose(this.shape), function (row) { return row.reverse(); });
     },
-    reset: function () {
+    reset: function (shape) {
         this.y     = 0;
         this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
-        this.shape = Game.PENTOMINO_SHAPES[2]; // _.sample(Game.PENTOMINO_SHAPES);
+        this.shape = shape !== undefined ? _.cloneDeep(shape) : _.sample(Game.PENTOMINO_SHAPES);
+        // this.shape = Game.PENTOMINO_SHAPES[2]; // _.sample(Game.PENTOMINO_SHAPES);
     }
 }
 
@@ -34,7 +35,9 @@ Game.Grid = function (state) {
     // parent state (Phaser.State)
     this.state = state;
 
-    this.pentomino = new Game.FallingPentomino();
+    this.pentomino     = new Game.FallingPentomino();
+    this.nextPentomino = new Game.FallingPentomino();
+    this.drawNextPentomino();
 
     // variables for the "exploding row" animation
     this.explodingGroup     = null; // Phaser.Group with the exploding particles
@@ -86,7 +89,10 @@ Game.Grid.prototype = {
             Game.status        = STATUS_PLAYING;
             this.state.speedUp = 0;
 
-            this.pentomino.reset();
+            this.pentomino.reset(this.nextPentomino.shape);
+            this.nextPentomino.reset();
+
+            this.drawNextPentomino();
         }
 
         // update falling pentomino by drawing it on the new, lower position
@@ -299,6 +305,21 @@ Game.Grid.prototype = {
                     || self.pentomino.y + y - 5 >= 0 && self.pentomino.y + y - 5 < GRID_SIZE_H && self.grid[self.pentomino.y + y - 5][self.wrapCell(self.pentomino.x + x)] == 1);
             });
         })
+    },
+
+    // draw the next pentomino that will fall
+    drawNextPentomino: function () {
+        var self = this;
+
+        this.state.nextPentomino.key.clear();
+
+        _.each(this.nextPentomino.shape, function (row, y) {
+            _.each(row, function (cell, x) {
+                if (cell == 1) {
+                    self.state.nextPentomino.key.rect(x * GRID_CELL_SIZE, y * GRID_CELL_SIZE, GRID_CELL_SIZE, GRID_CELL_SIZE);
+                }
+            });
+        });
     },
 
     // actually draw the black pentominos

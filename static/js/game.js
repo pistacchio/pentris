@@ -7,8 +7,8 @@ Game.Main = function (game) {
 
     this.plasmaBackground = null;
 
-    this.pentominosData = null;
-    this.pentominos     = null;
+    this.pentominos    = null;
+    this.nextPentomino = null;
 
     this.grid = null;
 
@@ -50,13 +50,16 @@ Game.Main.prototype = {
         }
 
         // setup background plasma effect
-        this.background = this.add.image(GRID_X, GRID_Y,this.add.bitmapData(GRID_SIZE_W * GRID_CELL_SIZE / PLASMA_CELL_SIZE, GRID_SIZE_H * GRID_CELL_SIZE / PLASMA_CELL_SIZE));
+        this.background = this.add.image(GRID_X, GRID_Y, this.add.bitmapData(GRID_SIZE_W * GRID_CELL_SIZE / PLASMA_CELL_SIZE, GRID_SIZE_H * GRID_CELL_SIZE / PLASMA_CELL_SIZE));
         this.plasmaBackground = new Game.PlasmaBackground(this.background.key);
 
         this.miniBackground     = this.add.image(7, 88, this.make.bitmapData(63, 84));
 
         // cover background image
         this.backgroundCover = this.add.image(0, 0, Game.assets.images.backgroundCoverData);
+
+        // image to display the next pentomino that will fall
+        this.nextPentomino = this.add.image(NEXT_PENTOMINO_X, NEXT_PENTOMINO_Y, this.add.bitmapData(NEXT_PENTOMINO_WIDTH, NEXT_PENTOMINO_HEIGHT));
 
         // setup the main grid with the falling pentomino
         this.pentominos = this.add.image(GRID_X, GRID_Y, this.add.bitmapData(GRID_SIZE_W * GRID_CELL_SIZE, GRID_SIZE_H * GRID_CELL_SIZE));
