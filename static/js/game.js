@@ -45,6 +45,7 @@ Game.Main.prototype = {
             pixel.context = pixel.canvas.getContext('2d');
             Phaser.Canvas.addToDOM(pixel.canvas);
             Phaser.Canvas.setSmoothingEnabled(pixel.context, false);
+            Phaser.Canvas.setSmoothingEnabled(game.context, false);
             pixel.width = pixel.canvas.width;
             pixel.height = pixel.canvas.height;
         }
@@ -89,6 +90,7 @@ Game.Main.prototype = {
             this.texts.topScoreValue.text       = String(localStorage.getItem('pentrisTopScore'));
         else
             this.texts.topScoreValue.text       = '0';
+
         this.add.image(TEXTS.topScoreValueX, TEXTS.topScoreValueY, this.texts.topScoreValue);
 
         // completed lines
@@ -102,9 +104,11 @@ Game.Main.prototype = {
         this.texts.linesValue.text       = '0';
         this.add.image(TEXTS.linesValueX, TEXTS.linesValueY, this.texts.linesValue);
 
-
         // used not to upgrade the falling pentomino each this.speed time
         this.fallTimeElapsed  = this.time.time;
+
+        Game.status = STATUS_COUNTDOWN;
+        window.setTimeout(this.countdown.bind(this), COUNTDOWN.startDelay);
 
         // setup input
         game.input.keyboard.addKey(Phaser.Keyboard.UP).onDown.add(this.grid.rotatePentomino.bind(this.grid), this);
@@ -113,11 +117,15 @@ Game.Main.prototype = {
         game.input.keyboard.addKey(Phaser.Keyboard.DOWN).onDown.add(function () { this.speedUp = this.speed / 1.2; }, this);
         game.input.keyboard.addKey(Phaser.Keyboard.DOWN).onUp.add(function () { this.speedUp = 0; }, this);
         game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR).onUp.add(function () { Game.status = STATUS_FORCE_FALL, this.speedUp = this.speed * 2; }, this);
+
+        game.input.keyboard.enabled = false;
     },
     update: function () {
         this.plasmaBackground.update();
 
         this.miniBackground.key.copyRect(this.background.key, new Phaser.Rectangle(0, 0, 63, 84), 0, 0)
+
+        if (Game.status == STATUS_COUNTDOWN) return;
 
         // only update the falling pentomino once in a while (tetris style!)
         if (this.time.time - this.fallTimeElapsed >= this.speed - this.speedUp) {
@@ -131,6 +139,38 @@ Game.Main.prototype = {
         // update texts
         this.texts.scoreValue.text = String(this.score);
         this.texts.linesValue.text = String(this.lines);
+    },
+    countdown: function () {
+        var countdown,
+            tweet1, tween2, tween3;
+
+        countdown = this.add.image(COUNTDOWN.x, COUNTDOWN.y, this.add.bitmapData(COUNTDOWN.width, COUNTDOWN.height));
+        countdown.key.copyRect('images', COUNTDOWN.number3Rect, 0, 0);
+        countdown.anchor.setTo(0.5);
+        countdown.scale.set(COUNTDOWN.initialSize);
+        tween3 = game.add.tween(countdown.scale).to( { x: COUNTDOWN.scaleFactor, y: COUNTDOWN.scaleFactor }, COUNTDOWN.duration, Phaser.Easing.Bounce.Out, false, COUNTDOWN.startDelay);
+        tween3.onComplete.add(function () {
+            countdown.key.clear();
+            countdown.scale.set(COUNTDOWN.initialSize);
+            countdown.key.copyRect('images', COUNTDOWN.number2Rect, 0, 0);
+        });
+        tween2 = game.add.tween(countdown.scale).to( { x: COUNTDOWN.scaleFactor, y: COUNTDOWN.scaleFactor }, COUNTDOWN.duration, Phaser.Easing.Bounce.Out, false, COUNTDOWN.startDelay);
+        tween2.onComplete.add(function () {
+            countdown.key.clear();
+            countdown.scale.set(COUNTDOWN.initialSize);
+            countdown.key.copyRect('images', COUNTDOWN.number1Rect, 0, 0);
+        });
+        tween1 = game.add.tween(countdown.scale).to( { x: COUNTDOWN.scaleFactor, y: COUNTDOWN.scaleFactor }, COUNTDOWN.duration, Phaser.Easing.Bounce.Out, false, COUNTDOWN.startDelay);
+        tween1.onComplete.add(function () {
+            countdown.destroy();
+            Game.status = STATUS_PLAYING;
+            game.input.keyboard.enabled = true;
+        });
+
+        tween3.chain(tween2);
+        tween2.chain(tween1);
+
+        tween3.start();
     },
     render: function () {
         // this.game.debug.text(this.game.time.fps || '--', 2, 14, "#00ff00");

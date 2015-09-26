@@ -20,6 +20,8 @@ var GAME_W               = 256,
     STATUS_PLAYING        = 0,
     STATUS_REMOVING_LINES = 1,
     STATUS_FORCE_FALL     = 2,
+    STATUS_COUNTDOWN      = 3,
+    STATUS_GAMEOVER       = 4,
 
     STATUS_EXPLODING_START   = 0,
     STATUS_EXPLODING         = 1,
@@ -50,6 +52,24 @@ var GAME_W               = 256,
         linesValueX:     15,
         linesValueY:     45,
         linesValueWidth: 50,
+    },
+
+    COUNTDOWN = {
+        x:      125,
+        y:      100,
+        width:  27,
+        height: 27,
+
+        number3Rect: new Phaser.Rectangle(310, 0, 27, 27),
+        number2Rect: new Phaser.Rectangle(283, 0, 27, 27),
+        number1Rect: new Phaser.Rectangle(256, 0, 27, 27),
+
+        duration:   1200,
+        delay:      200,
+        startDelay: 300,
+
+        initialSize: 0.1,
+        scaleFactor: 4
     },
 
     RETRO_LOOK = true,

@@ -13,7 +13,6 @@ Game.FallingPentomino.prototype = {
         this.y     = 0;
         this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
         this.shape = shape !== undefined ? _.cloneDeep(shape) : _.sample(Game.PENTOMINO_SHAPES);
-        // this.shape = Game.PENTOMINO_SHAPES[2]; // _.sample(Game.PENTOMINO_SHAPES);
     }
 }
 
