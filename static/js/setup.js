@@ -72,6 +72,15 @@ var GAME_W               = 256,
         scaleFactor: 4
     },
 
+    GAMEOVER = {
+        x:      8,
+        y:      40,
+        width:  119,
+        height: 62,
+        rect:   new Phaser.Rectangle(0, 224, 119, 62),
+        scale:  2
+    },
+
     RETRO_LOOK = true,
 
     game = new Phaser.Game(GAME_W, GAME_H, Phaser.CANVAS, '', null, false, false),

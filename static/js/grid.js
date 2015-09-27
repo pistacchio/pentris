@@ -1,7 +1,7 @@
 Game.FallingPentomino = function () {
     this.y     = 0;
     this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
-    this.shape = _.sample(Game.PENTOMINO_SHAPES);
+    this.shape = Game.PENTOMINO_SHAPES[2]; //_.sample(Game.PENTOMINO_SHAPES);
 };
 
 Game.FallingPentomino.prototype = {
@@ -12,7 +12,7 @@ Game.FallingPentomino.prototype = {
     reset: function (shape) {
         this.y     = 0;
         this.x     = Math.floor(GRID_SIZE_W / 2 - 2.5);
-        this.shape = shape !== undefined ? _.cloneDeep(shape) : _.sample(Game.PENTOMINO_SHAPES);
+        this.shape = shape !== undefined ? _.cloneDeep(shape) : Game.PENTOMINO_SHAPES[2]; //_.sample(Game.PENTOMINO_SHAPES);
     }
 }
 
@@ -75,6 +75,19 @@ Game.Grid.prototype = {
             // revert the fall
             self.pentomino.y--;
 
+            // gameover?
+            if (_.any(this.pentomino.shape, function (row, y) {
+                return _.any(row, function (cell, x) {
+                    if (cell == 1) {
+                        return self.pentomino.y + y - 5 < 0;
+                    }
+                });
+            })) {
+                Game.status = STATUS_GAMEOVER;
+            }
+
+            if (Game.status == STATUS_GAMEOVER) return;
+
             // draw the pentomino on the board
             _.each(this.pentomino.shape, function (row, y) {
                 _.each(row, function (cell, x) {
@@ -113,6 +126,8 @@ Game.Grid.prototype = {
             Game.status          = STATUS_REMOVING_LINES;
             this.explodingStatus = STATUS_EXPLODING_START;
         }
+
+
     },
 
     // utility function that wraps a cell x value around the grid
@@ -207,14 +222,7 @@ Game.Grid.prototype = {
                     self.grid.splice(removedLine, 1);
                     self.grid = [_.map(_.range(GRID_SIZE_W), function () { return 0; })].concat(self.grid);
 
-                    // restore the plasma background and the pentominos grid the original position
-                    // that may have changed because of the shaing
-                    self.state.background.x      = self.shakeBackgroundOriginal.x;
-                    self.state.background.y      = self.shakeBackgroundOriginal.y;
-                    self.state.pentominos.x      = self.shakePentominosOriginal.x;
-                    self.state.pentominos.y      = self.shakePentominosOriginal.y;
-                    self.state.backgroundCover.x = 0;
-                    self.state.backgroundCover.y = 0;
+                    self.postShakePositionsReset();
 
                     // reset the status to the normal one
                     Game.status = STATUS_PLAYING;
@@ -254,25 +262,7 @@ Game.Grid.prototype = {
 
                 // one less step to go!
                 self.explodingFallCount--;
-            },
-
-            // shake effect accompanying the explosion
-            shake = function () {
-                // shake on alternate call, not to make it so fast it's not visible
-                if (self.explodingFallCount % 2 == 0) return;
-
-                // random x and y shake offset
-                var rndX = _.random(-5, 5);
-                var rndY = _.random(-5, 5);
-
-                // set the new position for the plasma background and the pentomino grid
-                self.state.background.x      = self.shakeBackgroundOriginal.x + rndX;
-                self.state.background.y      = self.shakeBackgroundOriginal.y + rndY;
-                self.state.pentominos.x      = self.shakePentominosOriginal.x + rndX;
-                self.state.pentominos.y      = self.shakePentominosOriginal.y + rndY;
-                self.state.backgroundCover.x = rndX;
-                self.state.backgroundCover.y = rndY;
-            }
+            };
 
         // call functions according to the current exploding state
         switch(this.explodingStatus) {
@@ -283,10 +273,47 @@ Game.Grid.prototype = {
                 removeFirstLine();
             break;
             case STATUS_EXPLODING_FALLING:
+                this.shake();
                 makeTheRowFall();
-                shake();
             break;
         }
+    },
+
+    // shake effect accompanying the explosion or gameover
+    shake: function (force) {
+        // shake on alternate call, not to make it so fast it's not visible
+        if (force !== true && self.explodingFallCount % 2 == 0) return;
+
+        // random x and y shake offset
+        var rndX = _.random(-5, 5);
+        var rndY = _.random(-5, 5);
+
+        // set the new position for the plasma background and the pentomino grid
+        this.state.background.x      = this.shakeBackgroundOriginal.x + rndX;
+        this.state.background.y      = this.shakeBackgroundOriginal.y + rndY;
+        this.state.pentominos.x      = this.shakePentominosOriginal.x + rndX;
+        this.state.pentominos.y      = this.shakePentominosOriginal.y + rndY;
+        this.state.backgroundCover.x = rndX;
+        this.state.backgroundCover.y = rndY;
+    },
+
+    // restore the plasma background and the pentominos grid the original position
+    // that may have changed because of the shaing
+    postShakePositionsReset: function () {
+        this.state.background.x      = this.shakeBackgroundOriginal.x;
+        this.state.background.y      = this.shakeBackgroundOriginal.y;
+        this.state.pentominos.x      = this.shakePentominosOriginal.x;
+        this.state.pentominos.y      = this.shakePentominosOriginal.y;
+        this.state.backgroundCover.x = 0;
+        this.state.backgroundCover.y = 0;
+    },
+
+    // check if any cell of the falling pentomino in the current position overlaps any cell
+    // of the already drawn pentomino grid
+    // can optionally also check if any cell is outiside the lower bound of the grid (> grid height)
+    pentominoCollides: function (checkOutBounds) {
+        if (checkOutBounds === undefined) checkOutBounds = false;
+
     },
 
     // check if any cell of the falling pentomino in the current position overlaps any cell

@@ -28,6 +28,8 @@ Game.Main = function (game) {
         lines:         null,
         linesValue:    null
     }
+
+    this.gameover = null;
 };
 
 Game.Main.prototype = {
@@ -125,20 +127,47 @@ Game.Main.prototype = {
 
         this.miniBackground.key.copyRect(this.background.key, new Phaser.Rectangle(0, 0, 63, 84), 0, 0)
 
-        if (Game.status == STATUS_COUNTDOWN) return;
+        console.log(this.backgroundCover.x);
+        console.log(this.backgroundCover.y);
 
-        // only update the falling pentomino once in a while (tetris style!)
-        if (this.time.time - this.fallTimeElapsed >= this.speed - this.speedUp) {
-            this.fallTimeElapsed = this.time.time;
-            this.grid.update();
+        switch (Game.status) {
+            case STATUS_COUNTDOWN:
+                return;
+            break;
+            case STATUS_GAMEOVER:
+                // the state just enterd
+                if (this.gameover == null) {
+                    this.gameover = this.add.image(GAMEOVER.x, GAMEOVER.y, this.add.bitmapData(GAMEOVER.width, GAMEOVER.height));
+                    this.gameover.scale.x = GAMEOVER.scale;
+                    this.gameover.scale.y = GAMEOVER.scale;
+                    this.gameover.key.copyRect('images', GAMEOVER.rect, 0, 0);
+
+                    this.gameoverShakeCount = 20;
+                }
+
+                this.gameoverShakeCount--;
+                if (this.gameoverShakeCount > 0) {
+                    this.grid.shake(true);
+                } else if (this.gameoverShakeCount === 0) {
+                    this.grid.postShakePositionsReset();
+                }
+            break;
+            default:
+                // only update the falling pentomino once in a while (tetris style!)
+                if (this.time.time - this.fallTimeElapsed >= this.speed - this.speedUp) {
+                    this.fallTimeElapsed = this.time.time;
+                    this.grid.update();
+                }
+
+                // remove complete lines
+                this.grid.updateRemovingLines();
+
+                // update texts
+                this.texts.scoreValue.text = String(this.score);
+                this.texts.linesValue.text = String(this.lines);
+            break;
         }
 
-        // remove complete lines
-        this.grid.updateRemovingLines();
-
-        // update texts
-        this.texts.scoreValue.text = String(this.score);
-        this.texts.linesValue.text = String(this.lines);
     },
     countdown: function () {
         var countdown,
@@ -163,8 +192,10 @@ Game.Main.prototype = {
         tween1 = game.add.tween(countdown.scale).to( { x: COUNTDOWN.scaleFactor, y: COUNTDOWN.scaleFactor }, COUNTDOWN.duration, Phaser.Easing.Bounce.Out, false, COUNTDOWN.startDelay);
         tween1.onComplete.add(function () {
             countdown.destroy();
-            Game.status = STATUS_PLAYING;
-            game.input.keyboard.enabled = true;
+            setTimeout(function () {
+                Game.status = STATUS_PLAYING;
+                game.input.keyboard.enabled = true;
+            }, COUNTDOWN.duration);
         });
 
         tween3.chain(tween2);
