@@ -127,9 +127,6 @@ Game.Main.prototype = {
 
         this.miniBackground.key.copyRect(this.background.key, new Phaser.Rectangle(0, 0, 63, 84), 0, 0)
 
-        console.log(this.backgroundCover.x);
-        console.log(this.backgroundCover.y);
-
         switch (Game.status) {
             case STATUS_COUNTDOWN:
                 return;
@@ -151,6 +148,8 @@ Game.Main.prototype = {
                 } else if (this.gameoverShakeCount === 0) {
                     this.grid.postShakePositionsReset();
                 }
+
+                this.grid.updateGameOverExplosions();
             break;
             default:
                 // only update the falling pentomino once in a while (tetris style!)

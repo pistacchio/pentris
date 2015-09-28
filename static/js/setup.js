@@ -27,6 +27,10 @@ var GAME_W               = 256,
     STATUS_EXPLODING         = 1,
     STATUS_EXPLODING_FALLING = 3,
 
+    STATUS_GAMEOVER_EXPLODING_START   = 0,
+    STATUS_GAMEOVER_EXPLODING         = 1,
+    STATUS_GAMEOVER_EXPLODING_FALLING = 3,
+
     TEXTS = {
         yellowredfontWidth:   6,
         yellowredfontHeight:  5,
